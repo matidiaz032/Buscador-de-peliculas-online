@@ -6,11 +6,17 @@ import { SearchForm } from "./components/SearchForm";
 import { MoviesList } from "./components/MoviesList";
 
 class App extends Component {
-  state = { results: [] };
+  state = { usedSearch: false, results: [] };
 
   handleResults = (results) => {
-    this.setState({ results });
+    this.setState({ results, usedSearch: true });
   };
+
+  renderResults () {
+    return this.state.results.length === 0 
+      ? <p>Sin Resultados</p>
+      : <MoviesList movies={this.state.results} /> 
+      }
 
   render() {
     return (
@@ -19,9 +25,9 @@ class App extends Component {
         <div className="SearchForm-wrapper">
           <SearchForm onResults={this.handleResults} />
         </div>
-        {this.state.results.length === 0 
-        ?<p>Sin Resultados</p>
-        : <MoviesList movies={this.state.results} /> 
+        {this.state.usedSearch
+        ? this.renderResults()
+        : <small>Use el formulario para buscar una pelicula(en ingles)</small>
         }
       </div>
     );
