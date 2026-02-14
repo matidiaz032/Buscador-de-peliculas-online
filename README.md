@@ -2,6 +2,8 @@
 
 Aplicación React moderna para buscar películas y series usando la API de [TMDB](https://www.themoviedb.org/).
 
+**[Demo en vivo](https://buscador-de-peliculas-online.vercel.app/)**
+
 ## Requisitos
 
 - **Node.js** >= 18 (requerido por Vite 5)
