@@ -4,8 +4,10 @@ Aplicación React moderna para buscar películas y series usando la API de [TMDB
 
 ## Requisitos
 
-- **Node.js** >= 16 (recomendado 18+ para mejor rendimiento)
+- **Node.js** >= 18 (requerido por Vite 5)
 - Cuenta en [TMDB](https://www.themoviedb.org/signup) y API key (gratuita)
+
+Con **nvm** instalado: `nvm use` (usa la versión de `.nvmrc`)
 
 ## Configuración
 
