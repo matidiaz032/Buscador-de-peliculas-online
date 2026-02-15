@@ -46,6 +46,9 @@ export const Nav = () => {
           <NavLink to="/watched" pathname={pathname} onClick={closeMenu}>
             Vistas {watched.length > 0 && `(${watched.length})`}
           </NavLink>
+          <NavLink to="/perfil" pathname={pathname} onClick={closeMenu}>
+            Perfil
+          </NavLink>
         </div>
       </div>
     </nav>

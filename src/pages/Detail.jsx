@@ -1,12 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { ButtonBackToHome } from '../components/ButtonBackToHome';
+import { useToast } from '../context/ToastContext';
 import { MovieListActions } from '../components/MovieListActions';
 import { DetailSkeleton } from '../components/DetailSkeleton';
 import { useMovieDetail } from '../hooks/useMovieDetail';
 import { getVideos } from '../services/movieApi';
 import { PageHead } from '../components/PageHead';
 import { SimilarMovies } from '../components/SimilarMovies';
+import { PorqueTeGustoSection } from '../components/PorqueTeGustoSection';
+import { WatchProvidersSection } from '../components/WatchProvidersSection';
+import { CreditsSection } from '../components/CreditsSection';
 
 const DetailMeta = ({ label, value }) =>
   value ? (
@@ -17,8 +21,31 @@ const DetailMeta = ({ label, value }) =>
 
 export const Detail = () => {
   const { movieId } = useParams();
+  const [searchParams] = useSearchParams();
   const { movie, loading, error, retry } = useMovieDetail(movieId);
+  const { success } = useToast();
   const [videos, setVideos] = useState([]);
+  const [isCinemaMode, setIsCinemaMode] = useState(false);
+  const fromRoulette = searchParams.get('ref') === 'roulette';
+
+  const toggleCinemaMode = useCallback(() => setIsCinemaMode((v) => !v), []);
+  const exitCinemaMode = useCallback(() => setIsCinemaMode(false), []);
+
+  useEffect(() => {
+    if (!isCinemaMode) return;
+    document.body.classList.add('cinema-mode');
+    return () => document.body.classList.remove('cinema-mode');
+  }, [isCinemaMode]);
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      const inInput = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName);
+      if (!inInput && (e.key === 'c' || e.key === 'C')) toggleCinemaMode();
+      if (e.key === 'Escape') exitCinemaMode();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [toggleCinemaMode, exitCinemaMode]);
 
   useEffect(() => {
     if (movieId) {
@@ -50,6 +77,7 @@ export const Detail = () => {
     Poster,
     Plot,
     genres,
+    genre_ids,
     runtime,
     vote_average,
     vote_count,
@@ -71,10 +99,47 @@ export const Detail = () => {
     Poster: posterSrc || 'N/A',
     Year,
     mediaType,
+    genres,
+    genre_ids,
+    runtime,
+    vote_average,
+    vote_count,
   };
 
+  const mainTrailer = videos[0];
+
   return (
-    <div className="container app-content detail-page">
+    <>
+      {isCinemaMode && (
+        <div className="cinema-mode-overlay" role="dialog" aria-label="Modo Cine">
+          <div className="cinema-mode-content">
+            {posterSrc && (
+              <img src={posterSrc} alt={Title} className="cinema-mode-poster" width={280} height={420} />
+            )}
+            <h1 className="cinema-mode-title">{Title}</h1>
+            {tagline && <p className="cinema-mode-tagline">{tagline}</p>}
+            {mainTrailer && (
+              <a
+                href={`https://www.youtube.com/watch?v=${mainTrailer.key}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="button is-info cinema-mode-trailer-btn"
+              >
+                Ver trailer
+              </a>
+            )}
+            <button
+              type="button"
+              className="cinema-mode-close"
+              onClick={exitCinemaMode}
+              aria-label="Salir del modo cine"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="container app-content detail-page">
       <PageHead
         title={Title}
         description={Plot ? Plot.slice(0, 160) : `Detalle de ${Title}`}
@@ -82,12 +147,39 @@ export const Detail = () => {
       <ButtonBackToHome />
       <div className="detail-header">
         <h1 className="title is-4">{Title}</h1>
-        <MovieListActions movie={movieForActions} />
+        <div className="detail-header-actions">
+          <MovieListActions movie={movieForActions} />
+          <button
+            type="button"
+            className="button is-info is-light detail-share-btn"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(window.location.href);
+                success('Link copiado');
+              } catch {
+                success('No se pudo copiar');
+              }
+            }}
+            title="Compartir resultado"
+            aria-label="Compartir resultado"
+          >
+            {fromRoulette ? 'Compartir resultado' : 'Compartir'}
+          </button>
+          <button
+            type="button"
+            className="button is-info is-light detail-cinema-btn"
+            onClick={toggleCinemaMode}
+            title="Modo Cine (C)"
+            aria-label="Modo Cine"
+          >
+            Modo Cine
+          </button>
+        </div>
       </div>
 
       {posterSrc && (
         <figure className="image detail-poster" style={{ maxWidth: 280 }}>
-          <img src={posterSrc} alt={Title} />
+          <img src={posterSrc} alt={Title} loading="lazy" width={280} height={420} />
         </figure>
       )}
 
@@ -125,7 +217,15 @@ export const Detail = () => {
         </div>
       )}
 
+      <WatchProvidersSection movieId={movieId} />
+      <CreditsSection movieId={movieId} />
+      <PorqueTeGustoSection
+        movieId={movieId}
+        title={Title}
+        genreIds={genre_ids || []}
+      />
       <SimilarMovies movieId={movieId} />
     </div>
+    </>
   );
 };

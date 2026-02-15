@@ -10,6 +10,8 @@ export const MovieListActions = ({ movie }) => {
     isInWatchlist,
     toggleWatched,
     isWatched,
+    addToWatched,
+    removeFromWatchlist,
     setRating,
     getRating,
   } = useUserListsContext();
@@ -19,6 +21,12 @@ export const MovieListActions = ({ movie }) => {
     Title: movie.Title,
     Year: movie.Year,
     Poster: movie.Poster || 'N/A',
+    mediaType: movie.mediaType,
+    ...(movie.genres && { genres: movie.genres }),
+    ...(movie.genre_ids?.length && { genre_ids: movie.genre_ids }),
+    ...(movie.runtime != null && { runtime: movie.runtime }),
+    ...(movie.vote_average != null && { vote_average: movie.vote_average }),
+    ...(movie.vote_count != null && { vote_count: movie.vote_count }),
   };
 
   const handleToggle = (toggleFn, isInFn, addMsg, removeMsg) => {
@@ -30,7 +38,11 @@ export const MovieListActions = ({ movie }) => {
   const handleRatingChange = (e) => {
     const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
     setRating(movie.id, val);
-    if (val != null) toast.success(`Tu valoración: ${val}/10`);
+    if (val != null) {
+      addToWatched(movieData);
+      removeFromWatchlist(movie.id);
+      toast.success(`Tu valoración: ${val}/10`);
+    }
   };
 
   const userRating = getRating(movie.id);
@@ -49,6 +61,7 @@ export const MovieListActions = ({ movie }) => {
               'Quitado de favoritos'
             )
           }
+          aria-label={isFavorite(movie.id) ? 'Quitar de favoritos' : 'Añadir a favoritos'}
           title={isFavorite(movie.id) ? 'Quitar de favoritos' : 'Añadir a favoritos'}
         >
           ★ Favoritos
@@ -64,6 +77,7 @@ export const MovieListActions = ({ movie }) => {
               'Quitado de ver después'
             )
           }
+          aria-label={isInWatchlist(movie.id) ? 'Quitar de ver después' : 'Añadir a ver después'}
           title={isInWatchlist(movie.id) ? 'Quitar de ver después' : 'Ver después'}
         >
           + Ver después
@@ -79,6 +93,7 @@ export const MovieListActions = ({ movie }) => {
               'Quitada de vistas'
             )
           }
+          aria-label={isWatched(movie.id) ? 'Quitar de vistas' : 'Marcar como vista'}
           title={isWatched(movie.id) ? 'Quitar de vistas' : 'Marcar como vista'}
         >
           ✓ Vista

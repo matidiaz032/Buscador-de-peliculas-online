@@ -24,7 +24,7 @@ export const SearchForm = forwardRef(({
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             disabled={disabled}
-            aria-label="Buscar película"
+            aria-label="Buscar película o serie"
           />
         </div>
         <div className="control">

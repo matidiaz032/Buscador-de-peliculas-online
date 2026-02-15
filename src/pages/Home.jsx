@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Title } from '../components/Title';
 import { SearchForm } from '../components/SearchForm';
 import { MoviesList } from '../components/MoviesList';
@@ -11,12 +12,27 @@ import { TrendingSection } from '../components/TrendingSection';
 import { PageHead } from '../components/PageHead';
 import { useMovies } from '../hooks/useMovies';
 import { useSearchHistory } from '../hooks/useSearchHistory';
+import { useDebounce } from '../hooks/useDebounce';
+import { useToast } from '../context/ToastContext';
+import {
+  parseSearchParamsToState,
+  buildSearchParamsFromState,
+  hasSearchableParams,
+} from '../utils/searchParams';
+
+const DEBOUNCE_MS = 350;
 
 export const Home = () => {
-  const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState({ type: 'movie' });
+  const [searchParams, setSearchParams] = useSearchParams();
   const searchInputRef = useRef(null);
+  const prevSearchRef = useRef(null);
   const { history, add, clear, remove } = useSearchHistory();
+  const { success } = useToast();
+
+  const urlState = parseSearchParamsToState(searchParams);
+  const [query, setQuery] = useState(urlState.query);
+  const [filters, setFilters] = useState(urlState.filters);
+  const debouncedQuery = useDebounce(query, DEBOUNCE_MS);
 
   const {
     movies,
@@ -24,7 +40,6 @@ export const Home = () => {
     error,
     hasSearched,
     search,
-    goToPage,
     reset,
     lastQuery,
     lastFilters,
@@ -32,23 +47,92 @@ export const Home = () => {
     totalPages,
   } = useMovies();
 
+  const syncToUrl = useCallback(
+    (newState, replace = false) => {
+      const sp = buildSearchParamsFromState(newState);
+      const newSearch = sp.toString();
+      const currentSearch = searchParams.toString();
+      if (newSearch === currentSearch) return;
+
+      if (replace) {
+        setSearchParams(sp, { replace: true });
+      } else {
+        setSearchParams(sp);
+      }
+    },
+    [searchParams, setSearchParams]
+  );
+
+  const fetchResults = useCallback(
+    (q, page, fl) => {
+      const hasQ = q?.trim();
+      const hasGenre = fl?.genre;
+
+      if (!hasQ && !hasGenre) {
+        reset();
+        return;
+      }
+      search(hasQ || '', page, fl);
+    },
+    [search, reset]
+  );
+
+  // Sync from URL (mount + back/forward) + fetch
+  useEffect(() => {
+    const currentSearch = searchParams.toString();
+    if (prevSearchRef.current === currentSearch) return;
+    prevSearchRef.current = currentSearch;
+
+    const state = parseSearchParamsToState(searchParams);
+    setQuery(state.query);
+    setFilters(state.filters);
+
+    if (hasSearchableParams(state)) {
+      fetchResults(state.query, state.page, state.filters);
+    } else {
+      reset();
+    }
+  }, [searchParams, fetchResults, reset]);
+
+  // Debounced query: sync to URL (page 1) when query changes
+  useEffect(() => {
+    if (!debouncedQuery.trim() && !filters.genre) {
+      syncToUrl({ query: '', filters: { type: 'movie' }, page: 1 });
+      reset();
+      return;
+    }
+    syncToUrl({ query: debouncedQuery, filters, page: 1 });
+  }, [debouncedQuery, filters, syncToUrl, reset]);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
+      const inInput = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName);
+      if (!inInput && e.key === '/') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         searchInputRef.current?.focus();
       }
+      if (!inInput && e.key === 'Escape') {
+        setQuery('');
+        syncToUrl({ query: '', filters: { type: 'movie' }, page: 1 });
+        reset();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [syncToUrl, reset]);
 
   const handleSearch = (searchQuery) => {
     const q = searchQuery.trim();
     setQuery(q);
     if (q || filters.genre) {
-      search(q, 1, filters);
+      syncToUrl({ query: q, filters, page: 1 });
     } else {
+      setFilters({ type: 'movie', genre: '', year: '', sortBy: 'popularity.desc' });
+      syncToUrl({ query: '', filters: { type: 'movie' }, page: 1 });
       reset();
     }
   };
@@ -61,18 +145,25 @@ export const Home = () => {
 
   const handleFiltersChange = (newFilters) => {
     setFilters(newFilters);
-    if (newFilters.genre) {
-      search(query.trim(), 1, newFilters);
-    } else if (!query.trim()) {
-      reset();
-    } else {
-      search(query.trim(), 1, newFilters);
-    }
+    syncToUrl({ query, filters: newFilters, page: 1 });
   };
 
   const handleHistorySelect = (item) => {
     setQuery(item);
-    search(item, 1, filters);
+    syncToUrl({ query: item, filters, page: 1 });
+  };
+
+  const handlePageChange = (page) => {
+    syncToUrl({ query, filters, page }, true);
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      success('Link copiado');
+    } catch {
+      success('No se pudo copiar');
+    }
   };
 
   const renderContent = () => {
@@ -106,7 +197,7 @@ export const Home = () => {
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
-            onPageChange={goToPage}
+            onPageChange={handlePageChange}
             loading={loading}
           />
         </>
@@ -116,7 +207,7 @@ export const Home = () => {
     return (
       <>
         <p className="state-message">
-          Escribe y pulsa Buscar, o selecciona un género para explorar
+          Escribe para buscar o selecciona un género para explorar
         </p>
         <TrendingSection />
       </>
@@ -132,14 +223,29 @@ export const Home = () => {
       <Title>Buscador de Películas</Title>
       <div className="search-form-wrapper">
         <MovieRoulette />
-        <SearchForm
-          ref={searchInputRef}
-          value={query}
-          onChange={setQuery}
-          onSearch={handleSearch}
-          disabled={loading}
+        <div className="search-form-row">
+          <SearchForm
+            ref={searchInputRef}
+            value={query}
+            onChange={setQuery}
+            onSearch={handleSearch}
+            disabled={loading}
+          />
+          <button
+            type="button"
+            className="button is-info is-light copy-link-btn"
+            onClick={handleCopyLink}
+            title="Copiar link"
+            aria-label="Copiar link"
+          >
+            Copiar link
+          </button>
+        </div>
+        <SearchFilters
+          filters={filters}
+          onChange={handleFiltersChange}
+          sortDisabled={!!query.trim()}
         />
-        <SearchFilters filters={filters} onChange={handleFiltersChange} />
         {(!hasSearched || !query.trim()) && !filters.genre && (
           <SearchHistory
             history={history}

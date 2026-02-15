@@ -5,6 +5,7 @@ import { Detail } from './pages/Detail';
 import { Favorites } from './pages/Favorites';
 import { Watchlist } from './pages/Watchlist';
 import { Watched } from './pages/Watched';
+import { Dashboard } from './pages/Dashboard';
 import { NotFound } from './pages/NotFound';
 import { Nav } from './components/Nav';
 import 'bulma/css/bulma.css';
@@ -20,6 +21,7 @@ function App() {
           <Route path="/favorites" element={<Favorites />} />
           <Route path="/watchlist" element={<Watchlist />} />
           <Route path="/watched" element={<Watched />} />
+          <Route path="/perfil" element={<Dashboard />} />
           <Route path="/detail/:movieId" element={<Detail />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

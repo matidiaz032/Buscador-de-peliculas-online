@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { searchMovies } from '../services/movieApi';
 
 const initialState = {
@@ -14,6 +14,7 @@ export const useMovies = () => {
   const [state, setState] = useState(initialState);
   const [lastQuery, setLastQuery] = useState('');
   const [lastFilters, setLastFilters] = useState({});
+  const abortRef = useRef(null);
 
   const search = useCallback(async (query, page = 1, filters = {}) => {
     const hasQuery = query?.trim();
@@ -26,13 +27,17 @@ export const useMovies = () => {
       return;
     }
 
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
+
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
       const { movies, totalResults, totalPages } = await searchMovies(
         hasQuery || '',
         page,
-        filters
+        filters,
+        abortRef.current.signal
       );
       setState({
         movies,
@@ -45,6 +50,7 @@ export const useMovies = () => {
       setLastQuery(hasQuery || '');
       setLastFilters(filters);
     } catch (error) {
+      if (error.name === 'AbortError') return;
       setState({
         ...initialState,
         loading: false,

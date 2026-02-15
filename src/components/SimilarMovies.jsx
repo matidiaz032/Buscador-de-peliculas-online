@@ -35,6 +35,8 @@ export const SimilarMovies = ({ movieId }) => {
                   src={movie.Poster || PLACEHOLDER_POSTER}
                   alt={movie.Title}
                   loading="lazy"
+                  width={200}
+                  height={300}
                 />
               </figure>
             </div>

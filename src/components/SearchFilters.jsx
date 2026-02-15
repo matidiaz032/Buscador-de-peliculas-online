@@ -4,6 +4,7 @@ import { useGenres } from '../hooks/useGenres';
 const TYPES = [
   { value: 'movie', label: 'Películas' },
   { value: 'tv', label: 'Series' },
+  { value: 'all', label: 'Todos' },
 ];
 
 const SORT_OPTIONS = [
@@ -18,9 +19,9 @@ const SORT_OPTIONS = [
 const currentYear = new Date().getFullYear();
 const years = ['', ...Array.from({ length: 50 }, (_, i) => String(currentYear - i))];
 
-export const SearchFilters = ({ filters, onChange }) => {
+export const SearchFilters = ({ filters, onChange, sortDisabled = false }) => {
   const { year, type, genre, sortBy } = filters;
-  const { genres } = useGenres(type || 'movie');
+  const { genres } = useGenres(type === 'all' ? 'movie' : type || 'movie');
 
   return (
     <div className="search-filters">
@@ -34,7 +35,7 @@ export const SearchFilters = ({ filters, onChange }) => {
           value={type || 'movie'}
           onChange={(e) => {
             const newType = e.target.value;
-            onChange({ ...filters, type: newType, genre: undefined });
+            onChange({ ...filters, type: newType, genre: newType === 'all' ? filters.genre : undefined });
           }}
         >
           {TYPES.map((t) => (
@@ -91,6 +92,8 @@ export const SearchFilters = ({ filters, onChange }) => {
           className="search-filters__select"
           value={sortBy || 'popularity.desc'}
           onChange={(e) => onChange({ ...filters, sortBy: e.target.value || undefined })}
+          disabled={sortDisabled}
+          title={sortDisabled ? 'Orden no disponible en búsqueda por texto' : ''}
         >
           {SORT_OPTIONS.map((s) => (
             <option key={s.value} value={s.value}>
