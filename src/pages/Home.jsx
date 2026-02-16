@@ -63,6 +63,11 @@ export const Home = () => {
     [searchParams, setSearchParams]
   );
 
+  const syncToUrlRef = useRef(syncToUrl);
+  syncToUrlRef.current = syncToUrl;
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
   const fetchResults = useCallback(
     (q, page, fl) => {
       const hasQ = q?.trim();
@@ -71,6 +76,9 @@ export const Home = () => {
       if (!hasQ && !hasGenre) {
         reset();
         return;
+      }
+      if (import.meta.env.DEV) {
+        console.debug('[Home] fetchResults', { query: hasQ || '(genre)', page, filters: fl });
       }
       search(hasQ || '', page, fl);
     },
@@ -94,15 +102,25 @@ export const Home = () => {
     }
   }, [searchParams, fetchResults, reset]);
 
-  // Debounced query: sync to URL (page 1) when query changes
+  // Debounced query: sync to URL (page 1) solo cuando el usuario cambia query/filters.
+  // No sobrescribir si la URL ya tiene lo mismo (preserva paginación) o si debouncedQuery
+  // está desactualizado (ej: click en historial reciente).
   useEffect(() => {
+    const current = parseSearchParamsToState(searchParamsRef.current);
+    const queryMatch = current.query === debouncedQuery;
+    const filtersMatch =
+      JSON.stringify(current.filters) === JSON.stringify(filters);
+    if (queryMatch && filtersMatch) return;
+
+    if (current.query && !debouncedQuery.trim()) return;
+
     if (!debouncedQuery.trim() && !filters.genre) {
-      syncToUrl({ query: '', filters: { type: 'movie' }, page: 1 });
+      syncToUrlRef.current({ query: '', filters: { type: 'movie' }, page: 1 });
       reset();
       return;
     }
-    syncToUrl({ query: debouncedQuery, filters, page: 1 });
-  }, [debouncedQuery, filters, syncToUrl, reset]);
+    syncToUrlRef.current({ query: debouncedQuery, filters, page: 1 });
+  }, [debouncedQuery, filters, reset]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {

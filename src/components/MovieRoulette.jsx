@@ -79,7 +79,7 @@ export const MovieRoulette = () => {
       const movie = await getRandomMovie(filterParams);
       navigate(`/detail/${movie.id}?ref=roulette`);
     } catch (error) {
-      console.error(error);
+      if (import.meta.env.DEV) console.error(error);
       alert(error.message || 'Error al obtener película aleatoria');
     } finally {
       setSpinning(false);

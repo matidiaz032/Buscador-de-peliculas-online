@@ -1,19 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
+import { preloadPosters, revokePosterUrls } from '../../utils/preloadPosters';
 
 const PLACEHOLDER_POSTER =
   'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" fill="%2321262d"%3E%3Crect width="200" height="300"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" fill="%238b949e" font-size="14"%3ENo image%3C/text%3E%3C/svg%3E';
 
 const loadImage = (src) =>
-  new Promise((resolve, reject) => {
+  new Promise((resolve) => {
+    if (!src) {
+      resolve(null);
+      return;
+    }
     const img = new Image();
-    if (src.startsWith('http')) img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
     img.src = src;
   });
 
-const drawTop9ToCanvas = async (items) => {
+const drawTop9ToCanvas = async (items, preloadedUrls) => {
   const W = 900;
   const H = 1100;
   const PAD = 24;
@@ -36,8 +40,11 @@ const drawTop9ToCanvas = async (items) => {
   ctx.fillText('Mi Top 9', W / 2, TITLE_H - 20);
 
   const images = await Promise.all(
-    items.map((m) => {
-      const src = m.Poster && m.Poster !== 'N/A' ? m.Poster : PLACEHOLDER_POSTER;
+    items.map((m, i) => {
+      const src =
+        (preloadedUrls && preloadedUrls[i]) ||
+        (m.Poster && m.Poster !== 'N/A' ? m.Poster : null) ||
+        PLACEHOLDER_POSTER;
       return loadImage(src).catch(() => null);
     })
   );
@@ -61,8 +68,38 @@ const drawTop9ToCanvas = async (items) => {
 
 export const Top9Modal = ({ isOpen, onClose, items, sourceLabel }) => {
   const [exporting, setExporting] = useState(false);
+  const [preloadedUrls, setPreloadedUrls] = useState([]);
   const modalRef = useRef(null);
   const { success, error } = useToast();
+
+  const preloadedBlobsRef = useRef([]);
+  const isOpenRef = useRef(isOpen);
+  isOpenRef.current = isOpen;
+
+  useEffect(() => {
+    if (!isOpen || !items?.length) {
+      revokePosterUrls(preloadedBlobsRef.current);
+      preloadedBlobsRef.current = [];
+      setPreloadedUrls([]);
+      return;
+    }
+    const urls = items.map((m) =>
+      m.Poster && m.Poster !== 'N/A' ? m.Poster : null
+    );
+    preloadPosters(urls).then((loaded) => {
+      const blobs = (loaded || []).filter((u) => u && u.startsWith('blob:'));
+      if (!isOpenRef.current) {
+        revokePosterUrls(blobs);
+        return;
+      }
+      preloadedBlobsRef.current = blobs;
+      setPreloadedUrls(loaded);
+    });
+    return () => {
+      revokePosterUrls(preloadedBlobsRef.current);
+      preloadedBlobsRef.current = [];
+    };
+  }, [isOpen, items]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -90,7 +127,7 @@ export const Top9Modal = ({ isOpen, onClose, items, sourceLabel }) => {
   const handleDownload = async () => {
     setExporting(true);
     try {
-      const canvas = await drawTop9ToCanvas(items);
+      const canvas = await drawTop9ToCanvas(items, preloadedUrls);
       canvas.toBlob((blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -144,10 +181,14 @@ export const Top9Modal = ({ isOpen, onClose, items, sourceLabel }) => {
           </button>
         </div>
         <div className="top9-grid">
-          {items.map((m) => (
+          {items.map((m, i) => (
             <div key={m.id} className="top9-cell">
               <img
-                src={m.Poster && m.Poster !== 'N/A' ? m.Poster : PLACEHOLDER_POSTER}
+                src={
+                  preloadedUrls[i] ||
+                  (m.Poster && m.Poster !== 'N/A' ? m.Poster : null) ||
+                  PLACEHOLDER_POSTER
+                }
                 alt={m.Title}
                 loading="lazy"
                 width={200}
